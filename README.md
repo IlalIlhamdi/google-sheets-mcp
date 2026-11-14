@@ -1,58 +1,98 @@
 # Google Sheets MCP Server
 
-Server **Model Context Protocol (MCP)** untuk membaca dan mengedit Google Sheets secara aman melalui **Streamable HTTP (Multi-User OAuth 2.1)** maupun **stdio / HTTP mode satu pengguna**.
+Server **Model Context Protocol (MCP)** berbasis Node.js untuk menghubungkan asisten AI (**ChatGPT**, **Claude**, **Cursor**, **Antigravity**, dan client MCP lainnya) ke **Google Sheets** secara aman.
 
-## Cara Langsung Pakai (Hosted Endpoint)
+Mendukung dua mode sekaligus:
+- **Multi-User Public OAuth 2.1 (`MCP_AUTH_MODE=multiuser`)** — setiap pengguna login dengan akun Google masing-masing untuk mengakses spreadsheet milik mereka sendiri.
+- **Single-Owner Lokal / Private (`stdio` atau `external-oidc`)** — untuk penggunaan pribadi dengan allowlist ID spreadsheet tetap.
 
-Jika Anda hanya ingin langsung menghubungkan MCP client (ChatGPT, Claude, Cursor, Antigravity, atau MCP Inspector) tanpa self-host sendiri:
+---
+
+## 1. Cara Langsung Pakai (Tanpa Install / Tanpa Self-Host)
+
+Jika Anda hanya ingin langsung memakai server yang sudah online:
 
 ```text
 https://sheets-mcp.allbase.my.id/mcp
 ```
 
-1. Tambahkan URL di atas sebagai **Custom / Remote MCP Server** di client MCP Anda.
-2. Pilih metode autentikasi **OAuth** (Dynamic Client Registration & CIMD didukung).
-3. Login dengan **akun Google Anda masing-masing** untuk memberi izin akses spreadsheet Anda sendiri.
+### Langkah Menghubungkan
+1. Buka pengaturan **Custom / Remote MCP Server** atau **Connectors** di client MCP pilihan Anda (misalnya ChatGPT Developer Mode, Claude, Cursor, atau MCP Inspector).
+2. Masukkan URL server:
+   `https://sheets-mcp.allbase.my.id/mcp`
+3. Pilih autentikasi **OAuth** *(Dynamic Client Registration & Client ID Metadata Document / CIMD didukung otomatis)*.
+4. Login menggunakan **akun Google Anda sendiri** pada halaman persetujuan Google, lalu izinkan akses Google Sheets.
+5. Setelah terhubung, Anda dapat langsung meminta AI membaca, mencari daftar sheet, menulis sel, menambah baris, membuat tab, atau memasang rumus.
 
-> **Privasi & Ketentuan:** [Privacy Policy](https://sheets-mcp.allbase.my.id/privacy) · [Terms of Service](https://sheets-mcp.allbase.my.id/terms)
-
----
-
-## Fitur & Tools
-
-| Tool | Fungsi | Mode |
-| --- | --- | --- |
-| `list_spreadsheets` | Daftar spreadsheet milik pengguna via Google Drive API (`drive.metadata.readonly`) atau `ALLOWED_SPREADSHEET_IDS` | Read / ReadWrite |
-| `list_tabs` | Cek akses spreadsheet dan daftar tab, judul, ukuran, serta locale | Read / ReadWrite |
-| `read_sheet` | Baca rentang sel terbatas (mis. `A1:D20`), nilai atau rumus | Read / ReadWrite |
-| `write_cells` | Timpa sel dengan nilai `RAW` | ReadWrite (`ENABLE_WRITES=true`) |
-| `append_rows` | Tambah baris setelah tabel yang dideteksi Google | ReadWrite (`ENABLE_WRITES=true`) |
-| `create_tab` | Buat tab baru dalam spreadsheet yang sudah ada | ReadWrite (`ENABLE_WRITES=true`) |
-| `set_formula` | Timpa satu sel dengan rumus (`USER_ENTERED`) | ReadWrite (`ENABLE_WRITES=true`) |
-
-Batasan keamanan bawaan: tidak ada tool untuk menghapus file, mengubah sharing/permission Drive, atau membuat file Drive baru. Rentang baca/tulis dibatasi (default maksimal `5.000` sel dan `200 KB` payload per panggilan).
+> **Halaman Informasi:** [Status & Panduan](https://sheets-mcp.allbase.my.id/) · [Privacy Policy](https://sheets-mcp.allbase.my.id/privacy) · [Terms of Service](https://sheets-mcp.allbase.my.id/terms)
 
 ---
 
-## Mode Pengoperasian
+## 2. Daftar Tools & Parameter
+
+Server menyediakan **7 tool** (tool tulis aktif ketika `ENABLE_WRITES=true` dan `GOOGLE_SCOPE_MODE=readwrite`):
+
+| Tool | Kategori | Deskripsi | Parameter Utama |
+| --- | --- | --- | --- |
+| `list_spreadsheets` | Baca | Menampilkan daftar spreadsheet milik akun Google yang login (bisa difilter judul) atau allowlist | `query?`, `maxResults?` (`1–50`) |
+| `list_tabs` | Baca | Memverifikasi akses spreadsheet dan melihat daftar tab, ID, ukuran grid, serta locale | `spreadsheetId` (ID atau URL Sheets) |
+| `read_sheet` | Baca | Membaca rentang sel terbatas (`A1:D20`) sebagai nilai tampilan, nilai mentah, atau rumus | `spreadsheetId`, `sheet`, `range`, `render?` |
+| `write_cells` | Tulis | Menimpa sel pada rentang persegi panjang exact dengan mode `RAW` (string `""` menghapus isi sel) | `spreadsheetId`, `sheet`, `range`, `values`, `confirm` |
+| `append_rows` | Tulis | Menambahkan baris baru setelah tabel logis di dalam `tableRange` | `spreadsheetId`, `sheet`, `tableRange`, `values`, `confirm` |
+| `create_tab` | Tulis | Membuat 1 tab baru (default 1.000 baris, 26 kolom) pada spreadsheet yang ada | `spreadsheetId`, `title`, `confirm` |
+| `set_formula` | Tulis | Mengisi 1 sel dengan rumus Google Sheets (`USER_ENTERED`, harus diawali `=`) | `spreadsheetId`, `sheet`, `cell`, `formula`, `confirm` |
+
+### Batasan & Pengamanan Bawaan
+- **Tanpa tool destruktif tingkat file:** tidak tersedia tool untuk menghapus file, mengubah sharing/permission Google Drive, atau membuat file spreadsheet baru.
+- **Batas payload & sel:** default maksimal **`5.000` sel** (`MAX_CELLS`), **`10.000` karakter** per sel/rumus, dan **`200 KB`** ukuran respons per panggilan (`MAX_RESPONSE_BYTES`).
+- **Validasi input ketat:** rentang harus berbatas (`A1:D20`, menolak seluruh kolom seperti `A:A`), penulisan teks memakai mode `RAW` agar teks tidak berubah menjadi rumus liar, dan setiap operasi tulis membutuhkan `confirm: true` setelah persetujuan pengguna.
+
+---
+
+## 3. Arsitektur & Model Keamanan
 
 ```mermaid
 flowchart LR
-  C[MCP Client: ChatGPT / Claude / Cursor] -->|HTTPS + OAuth 2.1 Bearer JWT| H[Server MCP HTTP :3000]
-  A[Antigravity / Client Lokal] -->|stdio| S[Server MCP stdio]
-  H -->|Per-User Google OAuth Token| G[Google Sheets & Drive API]
-  S -->|Single-Owner OAuth Token| G
+  U[MCP Client: ChatGPT / Claude / Cursor] -->|HTTPS + Bearer JWT| H[Express MCP Server :3000]
+  H <-->|OAuth 2.1 + PKCE S256| O[OAuth Provider + AES-256-GCM Store]
+  H -->|Per-User Google Access Token| G[Google Sheets v4 & Drive v3 API]
+  L[Client Lokal / Antigravity] -->|stdio| S[Local MCP Mode]
+  S -->|Single-Owner OAuth| G
 ```
 
-1. **Multi-User Public OAuth 2.1 (`MCP_AUTH_MODE=multiuser`):** setiap pengguna login dengan akun Google masing-masing, token Google terenkripsi **AES-256-GCM** di disk (`.data/oauth-store.json`), dengan proteksi PKCE `S256`, validasi CIMD SSRF, dan rate limiting.
-2. **Single-Owner Lokal / Tunnel (`MCP_AUTH_MODE=external-oidc` atau `stdio`):** untuk pemakaian pribadi dengan `ALLOWED_SPREADSHEET_IDS` yang dikunci.
+Keamanan pada mode **Multi-User (`MCP_AUTH_MODE=multiuser`)**:
+- **Isolasi Per-Pengguna:** setiap pengguna memiliki grant & token Google terpisah (`userId` dari Google `sub`); pengguna A tidak bisa mengakses spreadsheet pengguna B.
+- **Enkripsi Token at Rest:** store OAuth (`.data/oauth-store.json`) dienkripsi memakai **AES-256-GCM** dengan derivasi kunci **HKDF-SHA256** dari `.secrets/master.key` (atau `MCP_TOKEN_SECRET`), dan JWT internal ditandatangani **HS256**.
+- **OAuth 2.1 Modern:** mendukung PKCE (`S256`), `resource` indicator validation (RFC 8707), metadata RFC 9728 (`/.well-known/oauth-protected-resource/mcp`) & RFC 8414 (`/.well-known/oauth-authorization-server`), DCR (`/register`), dan CIMD dengan proteksi **SSRF** (memblokir IP privat/loopback/link-local/CGNAT).
+- **HTTP Hardening:** validasi `Host` & `Origin`, `trust proxy` terkontrol, CSP & security headers, serta rate limiting per IP pada endpoint OAuth & MCP.
 
 ---
 
-## Self-Hosting Publik (Linux VPS + Cloudflare Tunnel + PM2)
+## 4. Endpoint HTTP Publik
 
-Persyaratan: Node.js `>= 22.0.0`, Google Cloud project dengan **Google Sheets API** dan **Google Drive API** aktif, serta Google OAuth **Web application** client.
+| Endpoint | Fungsi |
+| --- | --- |
+| `GET /` | Halaman informasi & panduan koneksi |
+| `GET /privacy` · `GET /terms` | Privacy Policy & Terms of Service untuk OAuth Consent Screen |
+| `GET /healthz` | Status kesehatan server (`authMode`, `writesEnabled`, `googleConnection`) |
+| `GET /.well-known/oauth-protected-resource/mcp` | Metadata resource server (RFC 9728) |
+| `GET /.well-known/oauth-authorization-server` | Metadata OAuth 2.1 Authorization Server (RFC 8414) |
+| `POST /register` · `GET/POST /authorize` · `POST /token` · `POST /revoke` | Endpoint OAuth 2.1 Client Registration, Authorization, Token, dan Revocation |
+| `GET /oauth/google/callback` | Callback OAuth 2.0 dari Google |
+| `POST /mcp` | Endpoint Streamable HTTP MCP (dilindungi Bearer JWT; mengembalikan `401` + `WWW-Authenticate` jika tanpa token) |
 
+---
+
+## 5. Self-Hosting Publik (VPS Linux + Cloudflare Tunnel + PM2)
+
+### Prasyarat
+- **Node.js `>= 22.0.0`**
+- **Google Cloud Project** dengan **Google Sheets API** dan **Google Drive API** diaktifkan
+- **OAuth 2.0 Client (Web application)** dengan Authorized redirect URI:
+  `https://<domain-anda>/oauth/google/callback`
+- Domain dengan reverse proxy HTTPS (misalnya **Cloudflare Tunnel** atau Nginx/Caddy) ke `http://127.0.0.1:3000`
+
+### Langkah Setup
 ```bash
 git clone https://github.com/IlalIlhamdi/google-sheets-mcp.git
 cd google-sheets-mcp
@@ -60,25 +100,34 @@ npm ci --no-audit --no-fund
 npm run configure:public
 ```
 
-Perintah `npm run configure:public` akan membuat file `.env` dan master key di `.secrets/`, lalu Anda tinggal:
-- Tambahkan Authorized redirect URI `https://<domain-anda>/oauth/google/callback` di Google Cloud Console.
-- Verifikasi konfigurasi: `npm run doctor -- --remote`
-- Jalankan dengan PM2: `pm2 start ecosystem.config.cjs && pm2 save`
-- Arahkan reverse proxy HTTPS / Cloudflare Tunnel ke `http://127.0.0.1:3000`.
+Jalankan pemeriksaan sebelum online:
+```bash
+npm run doctor -- --remote
+```
 
-Variabel konfigurasi lengkap tersedia di [`.env.example`](.env.example).
+Jalankan di background dengan PM2 (`ecosystem.config.cjs`):
+```bash
+npm install -g pm2
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+Daftar lengkap environment variable dapat dilihat di [`.env.example`](.env.example).
 
 ---
 
-## Pengujian & Verifikasi Lokal
+## 6. Pengujian & Verifikasi
 
 ```bash
-npm run check
-npm test
+npm run check   # Cek sintaks seluruh file JavaScript (.mjs)
+npm test        # Jalankan unit & integration test (termasuk simulasi alur multi-user OAuth)
 ```
 
-Panduan lanjutan tersedia di:
-- [docs/WINDOWS11.md](docs/WINDOWS11.md) — Pemakaian lokal di Windows 11 & Antigravity (`stdio`)
-- [docs/CHATGPT-REMOTE.md](docs/CHATGPT-REMOTE.md) — Mode remote single-owner
-- [docs/SECURITY.md](docs/SECURITY.md) — Model keamanan & proteksi token
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Penanganan masalah umum
+---
+
+## 7. Dokumentasi Tambahan
+
+- [docs/WINDOWS11.md](docs/WINDOWS11.md) — Setup lokal di Windows 11 & Antigravity (`stdio`)
+- [docs/CHATGPT-REMOTE.md](docs/CHATGPT-REMOTE.md) — Setup remote mode single-owner
+- [docs/SECURITY.md](docs/SECURITY.md) — Detail arsitektur keamanan & manajemen kredensial
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Panduan mengatasi masalah umum
