@@ -10,21 +10,18 @@ Mendukung dua mode sekaligus:
 
 ## 1. Cara Langsung Pakai (Tanpa Install / Tanpa Self-Host)
 
-Jika Anda hanya ingin langsung memakai server yang sudah online:
+Jika Anda ingin langsung memakai server publik yang sudah online tanpa konfigurasi Google Cloud sendiri:
 
-```text
-https://sheets-mcp.allbase.my.id/mcp
-```
+- **Portal Koneksi Interaktif (1-Klik):** [https://sheets-mcp.allbase.my.id/](https://sheets-mcp.allbase.my.id/)
+- **MCP Endpoint (`Streamable HTTP`):** `https://sheets-mcp.allbase.my.id/mcp`
 
-### Langkah Menghubungkan
-1. Buka pengaturan **Custom / Remote MCP Server** atau **Connectors** di client MCP pilihan Anda (misalnya ChatGPT Developer Mode, Claude, Cursor, atau MCP Inspector).
-2. Masukkan URL server:
-   `https://sheets-mcp.allbase.my.id/mcp`
-3. Pilih autentikasi **OAuth** *(Dynamic Client Registration & Client ID Metadata Document / CIMD didukung otomatis)*.
-4. Login menggunakan **akun Google Anda sendiri** pada halaman persetujuan Google, lalu izinkan akses Google Sheets.
-5. Setelah terhubung, Anda dapat langsung meminta AI membaca, mencari daftar sheet, menulis sel, menambah baris, membuat tab, atau memasang rumus.
+Buka **[Portal Koneksi](https://sheets-mcp.allbase.my.id/)** di browser untuk langsung:
+1. Menyalin endpoint atau memasang konfigurasi **1-klik** sesuai aplikasi Anda (**ChatGPT**, **Claude**, **Cursor deep-link**, **Antigravity IDE** Windows/macOS/Linux, **Claude Code**, dan client MCP generik).
+2. Memilih autentikasi **OAuth** *(Dynamic Client Registration & Client ID Metadata Document / CIMD didukung otomatis)*.
+3. Login menggunakan **akun Google Anda sendiri** pada layar izin Google *(jika muncul peringatan `"Google hasn't verified this app"`, pilih **Advanced -> Go to sheets-mcp.allbase.my.id (unsafe)** lalu centang izin akses)*.
+4. Menguji kesiapan server langsung lewat tombol **Cek Status Server** (`/healthz`) sebelum mulai membaca/menulis Google Sheets lewat AI.
 
-> **Halaman Informasi:** [Status & Panduan](https://sheets-mcp.allbase.my.id/) · [Privacy Policy](https://sheets-mcp.allbase.my.id/privacy) · [Terms of Service](https://sheets-mcp.allbase.my.id/terms)
+> **Halaman Informasi:** [Portal Koneksi](https://sheets-mcp.allbase.my.id/) · [Privacy Policy](https://sheets-mcp.allbase.my.id/privacy) · [Terms of Service](https://sheets-mcp.allbase.my.id/terms)
 
 ---
 
@@ -72,7 +69,7 @@ Keamanan pada mode **Multi-User (`MCP_AUTH_MODE=multiuser`)**:
 
 | Endpoint | Fungsi |
 | --- | --- |
-| `GET /` | Halaman informasi & panduan koneksi |
+| `GET /` | Portal onboarding interaktif 1-klik (`text/html` dengan CSP nonce, dukungan tema Light/Dark) atau metadata JSON (`Accept: application/json`) |
 | `GET /privacy` · `GET /terms` | Privacy Policy & Terms of Service untuk OAuth Consent Screen |
 | `GET /healthz` | Status kesehatan server (`authMode`, `writesEnabled`, `googleConnection`) |
 | `GET /.well-known/oauth-protected-resource/mcp` | Metadata resource server (RFC 9728) |
