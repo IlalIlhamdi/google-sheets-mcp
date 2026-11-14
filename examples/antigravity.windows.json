@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "google-sheets-private": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": ["C:\\MCP\\google-sheets-mcp\\src\\index.mjs"],
+      "env": {
+        "MCP_ENV_FILE": "C:\\MCP\\google-sheets-mcp\\.env"
+      }
+    }
+  }
+}

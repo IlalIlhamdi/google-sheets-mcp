@@ -1,0 +1,13 @@
+{
+  "note": "Replace spreadsheetId with a verified allowlisted ID and sheet with an existing tab title. Enable writes and obtain user authorization for write examples.",
+  "calls": [
+    {"name":"list_spreadsheets","arguments":{}},
+    {"name":"list_tabs","arguments":{"spreadsheetId":"REPLACE_WITH_VERIFIED_SPREADSHEET_ID"}},
+    {"name":"read_sheet","arguments":{"spreadsheetId":"REPLACE_WITH_VERIFIED_SPREADSHEET_ID","sheet":"Data","range":"A1:D10"}},
+    {"name":"write_cells","arguments":{"spreadsheetId":"REPLACE_WITH_VERIFIED_SPREADSHEET_ID","sheet":"Data","range":"A1:B2","values":[["Nama","Jumlah"],["Kopi",2]],"confirm":true}},
+    {"name":"append_rows","arguments":{"spreadsheetId":"REPLACE_WITH_VERIFIED_SPREADSHEET_ID","sheet":"Data","tableRange":"A1:B1000","values":[["Teh",3]],"confirm":true}},
+    {"name":"create_tab","arguments":{"spreadsheetId":"REPLACE_WITH_VERIFIED_SPREADSHEET_ID","title":"Rekap","confirm":true}},
+    {"name":"set_formula","arguments":{"spreadsheetId":"REPLACE_WITH_VERIFIED_SPREADSHEET_ID","sheet":"Data","cell":"D2","formula":"=SUM(B2:B10)","confirm":true}},
+    {"name":"read_sheet","arguments":{"spreadsheetId":"REPLACE_WITH_VERIFIED_SPREADSHEET_ID","sheet":"Data","range":"D2","render":"FORMULA"}}
+  ]
+}
