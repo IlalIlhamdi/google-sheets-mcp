@@ -448,4 +448,46 @@ test('multiuser list_spreadsheets uses Drive v3 query escaping and OAuth rejects
     })
   });
   assert.equal(badPkce.status, 400);
+
+  // Onboarding portal HTML, CSP script nonce, client tabs, Cursor deeplink & JSON mode
+  const portalRes = await fetch(`${base}/`, { headers: { Accept: 'text/html' } });
+  assert.equal(portalRes.status, 200);
+  const csp = portalRes.headers.get('content-security-policy') ?? '';
+  const nonceMatch = csp.match(/script-src 'nonce-([^']+)'/);
+  assert.ok(nonceMatch, `expected CSP script-src nonce in: ${csp}`);
+  assert.match(csp, /connect-src 'self'/);
+
+  const portalHtml = await portalRes.text();
+  const scriptRegex = new RegExp(`<script nonce="${nonceMatch[1]}">([\\s\\S]*?)</script>`);
+  const scriptMatch = portalHtml.match(scriptRegex);
+  assert.ok(scriptMatch, 'expected inline script matching CSP nonce');
+  assert.doesNotThrow(() => new Function(scriptMatch[1]));
+
+  assert.match(portalHtml, /<html lang="id">/);
+  assert.match(portalHtml, /role="tablist"/);
+  assert.match(portalHtml, /id="tab-chatgpt"/);
+  assert.match(portalHtml, /id="tab-claude"/);
+  assert.match(portalHtml, /id="tab-cursor"/);
+  assert.match(portalHtml, /id="tab-antigravity"/);
+  assert.match(portalHtml, /id="tab-claudecode"/);
+  assert.match(portalHtml, /agy mcp add --type stdio google-sheets/);
+  assert.match(portalHtml, /claude mcp add --scope user --transport http google-sheets/);
+  assert.match(portalHtml, /Google hasn&#39;t verified this app|Google hasn't verified this app/);
+  assert.doesNotMatch(portalHtml, /\u2014|&mdash;/i);
+
+  const deeplinkMatch = portalHtml.match(/href="(cursor:\/\/anysphere\.cursor-deeplink\/mcp\/install\?[^"]+)"/);
+  assert.ok(deeplinkMatch, 'expected Cursor 1-click install deeplink');
+  const dlUrl = new URL(deeplinkMatch[1].replaceAll('&amp;', '&'));
+  assert.equal(dlUrl.searchParams.get('name'), 'google-sheets');
+  const decodedCursorCfg = JSON.parse(Buffer.from(dlUrl.searchParams.get('config'), 'base64').toString('utf8'));
+  assert.equal(decodedCursorCfg.url, runCfg.publicUrl);
+
+  const portalJsonRes = await fetch(`${base}/`, { headers: { Accept: 'application/json' } });
+  assert.equal(portalJsonRes.status, 200);
+  const portalJson = await portalJsonRes.json();
+  assert.equal(portalJson.mcpEndpoint, runCfg.publicUrl);
+
+  const privRes = await fetch(`${base}/privacy`);
+  assert.equal(privRes.status, 200);
+  assert.doesNotMatch(privRes.headers.get('content-security-policy') ?? '', /script-src/);
 });

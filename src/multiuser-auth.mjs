@@ -6,6 +6,7 @@ import { scopeFor } from './google-auth.mjs';
 import { googleApi, SheetsService } from './sheets.mjs';
 import { isValidRedirectUri } from './oauth-store.mjs';
 import { UserError } from './errors.mjs';
+import { renderLandingPage, renderPrivacyPage, renderTermsPage } from './portal.mjs';
 
 export const DRIVE_METADATA_SCOPE = 'https://www.googleapis.com/auth/drive.metadata.readonly';
 
@@ -285,85 +286,15 @@ export class MultiUserGoogleProvider {
     return service;
   }
 
-  renderHtmlPage(title, bodyHtml) {
-    return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escapeHtml(title)}</title>
-<style>
-  body { font-family: system-ui, -apple-system, sans-serif; max-width: 740px; margin: 48px auto; padding: 0 20px; line-height: 1.6; color: #111827; background: #f9fafb; }
-  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 28px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
-  code { background: #f3f4f6; padding: 2px 6px; border-radius: 6px; font-size: 0.9em; word-break: break-all; }
-  .badge { display: inline-block; background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 999px; font-size: 0.85em; font-weight: 600; }
-  .footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 0.9em; color: #4b5563; display: flex; gap: 16px; flex-wrap: wrap; }
-  a { color: #1d4ed8; text-decoration: none; }
-  a:hover { text-decoration: underline; }
-</style>
-</head>
-<body>
-<div class="card">
-  ${bodyHtml}
-  <div class="footer">
-    <a href="/">Home</a>
-    <a href="/privacy">Privacy Policy</a>
-    <a href="/terms">Terms of Service</a>
-  </div>
-</div>
-</body>
-</html>`;
-  }
-
-  landingPageHtml() {
-    const mcpEndpoint = escapeHtml(this.config.publicUrl);
-    const writes = this.config.writes ? 'Baca & Tulis (Read & Write)' : 'Baca saja (Read-only)';
-    return this.renderHtmlPage('Google Sheets MCP Server', `
-  <span class="badge">Online &bull; Multi-User OAuth 2.1</span>
-  <h1>Google Sheets MCP Server</h1>
-  <p>Server MCP publik untuk mengakses Google Sheets menggunakan akun Google masing-masing pengguna (OAuth 2.1 + PKCE).</p>
-  <p><strong>MCP Endpoint:</strong> <code>${mcpEndpoint}</code></p>
-  <p><strong>Mode Akses:</strong> ${escapeHtml(writes)}</p>
-  <h3>Cara Menghubungkan</h3>
-  <ol>
-    <li>Tambahkan URL endpoint <code>${mcpEndpoint}</code> sebagai Custom MCP Server / Connector di ChatGPT, Claude, Cursor, Antigravity, atau MCP Inspector.</li>
-    <li>Pilih autentikasi <strong>OAuth</strong> (Dynamic Client Registration &amp; CIMD didukung).</li>
-    <li>Login dengan akun Google Anda masing-masing pada halaman izin Google.</li>
-  </ol>`);
+  landingPageHtml(nonce = '') {
+    return renderLandingPage({ config: this.config, publicUrl: this.publicUrl, nonce });
   }
 
   privacyPageHtml() {
-    const origin = escapeHtml(this.publicUrl.origin);
-    const scopes = this.config.driveListEnabled
-      ? '<code>openid</code>, <code>email</code>, Google Sheets (<code>spreadsheets</code>), and Google Drive metadata (<code>drive.metadata.readonly</code>)'
-      : '<code>openid</code>, <code>email</code>, and Google Sheets (<code>spreadsheets</code>)';
-    return this.renderHtmlPage('Privacy Policy - Google Sheets MCP', `
-  <h1>Privacy Policy</h1>
-  <p><strong>Service:</strong> Google Sheets MCP Server (<code>${origin}</code>)</p>
-  <h3>1. Information Accessed</h3>
-  <p>When you sign in with Google OAuth 2.0, this server receives your Google account identifier, email address, and OAuth tokens for ${scopes} solely to execute MCP tool requests you initiate from your connected AI client.</p>
-  <h3>2. Data Usage and Storage</h3>
-  <ul>
-    <li>Spreadsheet contents read or written through MCP tools are processed in memory per request and are not permanently stored in a server database.</li>
-    <li>Your Google OAuth tokens are stored on this server encrypted at rest (AES-256-GCM) so your authorized MCP client sessions can access your Google Sheets on your behalf.</li>
-    <li>We do not sell, rent, or transfer your Google user data to third parties or use it for advertising.</li>
-  </ul>
-  <h3>3. Revocation and Deletion</h3>
-  <p>You may disconnect this service at any time by revoking access in your <a href="https://myaccount.google.com/permissions" rel="noreferrer">Google Account Permissions</a> or through your MCP client token revocation flow (<code>/revoke</code>).</p>
-  <h3>4. Contact</h3>
-  <p>For questions about this deployment, contact the operator listed on the Google OAuth consent screen for <code>${escapeHtml(this.publicUrl.hostname)}</code>.</p>`);
+    return renderPrivacyPage({ config: this.config, publicUrl: this.publicUrl });
   }
 
   termsPageHtml() {
-    const origin = escapeHtml(this.publicUrl.origin);
-    return this.renderHtmlPage('Terms of Service - Google Sheets MCP', `
-  <h1>Terms of Service</h1>
-  <p><strong>Service:</strong> Google Sheets MCP Server (<code>${origin}</code>)</p>
-  <h3>1. Acceptable Use</h3>
-  <p>This service acts as an OAuth 2.1 Model Context Protocol (MCP) bridge between your chosen AI client and your own Google account. You are solely responsible for all read and write operations executed through your authorized sessions.</p>
-  <h3>2. Authorization and Security</h3>
-  <p>Each user authenticates directly with Google and can only access spreadsheets permitted by their own Google account. Do not share issued MCP tokens with untrusted parties.</p>
-  <h3>3. Availability and Warranty</h3>
-  <p>This service is provided &ldquo;as is&rdquo; without warranty of uninterrupted availability. The operator may suspend, rate-limit, or terminate access to protect service stability and security.</p>`);
+    return renderTermsPage({ publicUrl: this.publicUrl });
   }
 }

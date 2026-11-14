@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -148,15 +149,19 @@ export function createHttpApp(config, serviceOrProvider, verify = config.authMod
       ...createOAuthMetadata({ provider, issuerUrl, scopesSupported:[config.scope] }),
       client_id_metadata_document_supported: true
     };
-    const sendHtml = (res, html) => {
-      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+    const sendHtml = (res, html, nonce = '') => {
+      const csp = nonce
+        ? `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self'; base-uri 'self'; form-action 'none'`
+        : "default-src 'none'; style-src 'unsafe-inline'; base-uri 'self'; form-action 'none'";
+      res.setHeader('Content-Security-Policy', csp);
       return res.type('html').send(html);
     };
     app.get('/', (req, res) => {
       if (req.accepts(['html', 'json']) === 'json') {
         return res.json({ name:'google-sheets-mcp', mcpEndpoint:config.publicUrl, authMode:'multiuser', writesEnabled:config.writes });
       }
-      return sendHtml(res, provider.landingPageHtml());
+      const nonce = randomBytes(16).toString('base64');
+      return sendHtml(res, provider.landingPageHtml(nonce), nonce);
     });
     app.get('/privacy', (_req, res) => sendHtml(res, provider.privacyPageHtml()));
     app.get('/terms', (_req, res) => sendHtml(res, provider.termsPageHtml()));
